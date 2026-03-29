@@ -1,12 +1,18 @@
-# KB라이프 보험료 스크래퍼
+# 보험료 데이터 스크래퍼
 
-KB라이프생명 온라인 보험료 계산기에서 상품별 보험료 데이터를 자동 수집하는 Chrome 확장 프로그램입니다.
+KB라이프생명 보험료 계산기 및 금융감독원 보험다모아(e-insmarket)에서 보험료 데이터를 자동 수집하는 스크래퍼 모음입니다.
 
 ## 프로젝트 구조
 
 ```
 sanhak-hyeopryuk/
-├── chrome_extension/          # Chrome 확장 프로그램 (스크래퍼)
+├── einsmarket_scraper.py          # 금감원 보험다모아 암보험 스크래퍼 (Playwright)
+├── scrape_whole_ins.py            # 금감원 보험다모아 종신보험 스크래퍼 (병렬 HTTP)
+├── scrape_temp_ins.py             # 금감원 보험다모아 정기보험 스크래퍼 (병렬 HTTP)
+├── capture_whole_ins.py           # 네트워크 캡처 도구
+├── einsmarket_scraper_guide.md    # 금감원 스크래퍼 구조 & MBuster 우회 가이드
+│
+├── chrome_extension/          # Chrome 확장 프로그램 (KB라이프 스크래퍼)
 │   ├── manifest.json          # 확장 프로그램 설정
 │   ├── inject.js              # 페이지에 스크래퍼 스크립트 주입
 │   ├── scraper.js             # 착한정기보험II 전용 스크래퍼
@@ -18,11 +24,61 @@ sanhak-hyeopryuk/
 │   └── test_annuity.js        # 연금 스크래퍼 테스트
 │
 └── data/                      # 수집된 데이터
-    ├── einsmarket/            # 금융감독원 보험다모아(einsmarket) XLS 데이터
+    ├── einsmarket/            # 금감원 보험다모아 — 암보험 XLS
+    ├── whole_ins/             # 금감원 보험다모아 — 종신보험 XLS
+    ├── temp_ins/              # 금감원 보험다모아 — 정기보험 XLS
     └── premiums/              # KB라이프 보험료 계산 결과 (JSONL)
 ```
 
 ## 스크래퍼 종류
+
+### 0. `einsmarket_scraper.py` — 금감원 보험다모아 스크래퍼
+
+- **대상**: 금융감독원 보험다모아(e-insmarket.or.kr) 암보험 비교 데이터
+- **기술**: Python + Playwright (headless=False, 실제 Chrome 필요)
+- **실행 방법**:
+  ```bash
+  pip install playwright
+  playwright install chromium
+  python einsmarket_scraper.py --age-start 20 --age-end 64
+  ```
+- **수집 항목**: 나이(20~64세) x 성별(남/여) x 갱신구분(갱신형/비갱신형) → 전사 암보험 비교 XLS
+- **작동 방식**:
+  1. Playwright로 실제 Chrome 브라우저 실행
+  2. `navigator.webdriver` 제거로 MBuster 봇 감지 우회
+  3. 첫 페이지 로드 시 MBuster 자연 통과 → 이후 MBuster API intercept
+  4. 조합별로 폼 필드 세팅 → "상품비교하기" 클릭 → `exceldown()` 호출로 XLS 다운로드
+  5. 이미 수집된 파일은 자동 스킵 (중단/재개 가능)
+- **주의사항**:
+  - `headless=False` 필수 (headless 감지됨)
+  - F12(DevTools) 절대 열지 말 것 (즉시 차단)
+  - IP 차단 시 VPN/모바일 핫스팟으로 IP 변경 필요
+  - 상세 가이드: `einsmarket_scraper_guide.md` 참고
+
+### 0-1. `scrape_whole_ins.py` — 금감원 종신보험 스크래퍼
+
+- **대상**: 금융감독원 보험다모아 종신보험 비교 데이터
+- **기술**: Playwright (세션 획득) + aiohttp (10건 병렬 다운로드)
+- **실행 방법**:
+  ```bash
+  pip install playwright aiohttp
+  python scrape_whole_ins.py --age-start 20 --age-end 64 --batch 10
+  ```
+- **수집 항목**: 나이(20~64세) x 성별(남/여) → 전사 종신보험 비교 XLS
+- **작동 방식**:
+  1. Playwright로 사이트 접속하여 세션 쿠키 획득 (MBuster 우회 포함)
+  2. 쿠키를 이용해 `POST /spreadsheet/download.knia`로 직접 엑셀 다운로드
+  3. 10건씩 동시 요청으로 빠른 수집
+
+### 0-2. `scrape_temp_ins.py` — 금감원 정기보험 스크래퍼
+
+- **대상**: 금융감독원 보험다모아 정기보험 비교 데이터
+- **기술**: 종신보험 스크래퍼와 동일 (Playwright + aiohttp 병렬)
+- **실행 방법**:
+  ```bash
+  python scrape_temp_ins.py --age-start 20 --age-end 64 --batch 10
+  ```
+- **수집 항목**: 나이(20~64세) x 성별(남/여) → 전사 정기보험 비교 XLS
 
 ### 1. `scraper.js` — 착한정기보험II 전용
 
@@ -104,6 +160,18 @@ sanhak-hyeopryuk/
 - **형식**: XLS (Excel)
 - **파일명 규칙**: `{보험유형}_{나이}세_{성별}_{갱신형/비갱신형}.xls`
 - **현재 데이터**: 암보험 (cancer) — 180개 파일
+
+### `data/whole_ins/` — 금감원 종신보험
+
+- **형식**: XLS (Excel)
+- **파일명 규칙**: `whole_{나이}세_{성별}.xls`
+- **현재 데이터**: 90개 파일 (20~64세 x 남/여)
+
+### `data/temp_ins/` — 금감원 정기보험
+
+- **형식**: XLS (Excel)
+- **파일명 규칙**: `temp_{나이}세_{성별}.xls`
+- **현재 데이터**: 90개 파일 (20~64세 x 남/여)
 
 ### `data/premiums/` — KB라이프 보험료 계산 결과
 
