@@ -12,179 +12,209 @@ sanhak-hyeopryuk/
 ├── capture_whole_ins.py           # 네트워크 캡처 도구
 ├── einsmarket_scraper_guide.md    # 금감원 스크래퍼 구조 & MBuster 우회 가이드
 │
-├── chrome_extension/          # Chrome 확장 프로그램 (KB라이프 스크래퍼)
-│   ├── manifest.json          # 확장 프로그램 설정
-│   ├── inject.js              # 페이지에 스크래퍼 스크립트 주입
-│   ├── scraper.js             # 착한정기보험II 전용 스크래퍼
-│   ├── scraper_universal.js   # 범용 스크래퍼 (대부분의 상품 지원)
-│   ├── scraper_health.js      # e-건강보험 전용 스크래퍼
-│   ├── scraper_annuity.js     # 하이파이브연금 전용 스크래퍼
-│   ├── scan_annuity.js        # 연금 상품 나이별 옵션 스캔 도구
-│   ├── existing_keys.json     # 이미 수집된 키 목록 (중복 방지)
-│   └── test_annuity.js        # 연금 스크래퍼 테스트
+├── chrome_extension/              # Chrome 확장 프로그램 (KB라이프 스크래퍼)
+│   ├── manifest.json              # 확장 프로그램 설정 (v2.0 — PC 사이트 대응)
+│   ├── bridge.js                  # content script — 팝업 ↔ 페이지 메시지 중계
+│   ├── page_runner.js             # 페이지 컨텍스트 — 명령 수신 + 스크래퍼 호출
+│   ├── popup.html                 # 팝업 UI
+│   ├── popup.js                   # 팝업 로직
+│   ├── capture.js                 # API 요청 캡처 도구 (디버깅용, 기본 비활성)
+│   ├── test_pc.js                 # PC 사이트 API 호출 테스트
+│   ├── scraper.js                 # 착한정기보험II 전용 스크래퍼
+│   ├── scraper_universal.js       # 범용 스크래퍼 (대부분의 상품 지원)
+│   ├── scraper_health.js          # e-건강보험 전용 스크래퍼
+│   ├── scraper_3n5.js             # 3N5 건강보험 전용 스크래퍼 (16개 상품)
+│   ├── scraper_annuity.js         # 하이파이브연금 전용 스크래퍼
+│   ├── scan_annuity.js            # 연금 상품 나이별 옵션 스캔 도구
+│   └── existing_keys.json         # 이미 수집된 키 목록 (중복 방지)
 │
-└── data/                      # 수집된 데이터
-    ├── einsmarket/            # 금감원 보험다모아 — 암보험 XLS
-    ├── whole_ins/             # 금감원 보험다모아 — 종신보험 XLS
-    ├── temp_ins/              # 금감원 보험다모아 — 정기보험 XLS
-    └── premiums/              # KB라이프 보험료 계산 결과 (JSONL)
+└── data/                          # 수집된 데이터
+    ├── einsmarket/                # 금감원 보험다모아 — 암보험 XLS
+    ├── whole_ins/                 # 금감원 보험다모아 — 종신보험 XLS
+    ├── temp_ins/                  # 금감원 보험다모아 — 정기보험 XLS
+    └── premiums/                  # KB라이프 보험료 계산 결과 (JSONL)
 ```
+
+## 현재 상태 (2026-04-01)
+
+### KB라이프 WAF 차단 현황
+
+KB라이프가 웹 방화벽(WAF)을 지속적으로 강화하고 있어서 스크래핑이 어려운 상태입니다.
+
+**확인된 차단 로직:**
+
+| 차단 레이어 | 설명 |
+|-------------|------|
+| 모바일 사이트 차단 | `m.kblife.co.kr` — DevTools 모바일 모드 사용 시 즉시 차단 |
+| IP 블랙리스트 | API 호출 패턴 감지 시 해당 IP의 모든 API 차단 |
+| XHR 변조 탐지 | XMLHttpRequest prototype 오버라이드 감지 시 차단 (AhnLab ASTX2) |
+| 응답 암호화 | API 응답을 `cmmUtil.vestDec()`로 암호화 — 디코딩 필요 |
+
+**현재 작동하는 접근 방식:**
+- PC 사이트(`www.kblife.co.kr`) 사용
+- 크롬 익스텐션 + 팝업 UI (DevTools 불필요)
+- `premium-new-calculate` API → `cmmUtil.vestDec()` 디코딩 → `insuranceplans/{id}` 조회
+- IP 차단 시 VPN 변경 필요
+
+### 이어서 작업해야 할 것
+
+**1. XHR 변조 탐지 문제 해결 (최우선)**
+
+`capture.js`가 `XMLHttpRequest.prototype.open/send`를 오버라이드하면 WAF가 탐지하여 차단합니다. `console.log` 오버라이드도 마찬가지입니다. 현재 `bridge.js`에서 `capture.js`는 제거된 상태이고, `page_runner.js`에서 console 오버라이드도 제거되었습니다.
+
+**하지만 스크래퍼 스크립트 자체의 주입(`<script src="...">`)이 탐지되는 건지, 아니면 API 호출 패턴(빈도/속도)이 탐지되는 건지 아직 명확하지 않습니다.**
+
+다음 테스트를 해봐야 합니다:
+- 익스텐션 로드된 상태에서 수동으로 보험료 계산 여러 번 → 차단 여부 확인
+- 차단 안 되면 → 스크래퍼의 API 호출 패턴이 문제
+- 차단 되면 → 스크립트 주입 자체가 탐지됨 → 다른 주입 방식 필요
+
+**2. Rate Limiting 전략 수립**
+
+현재 스크래퍼는 딜레이 없이 배치 병렬 호출(`Promise.all`)합니다. KB WAF의 rate limit 임계값을 파악하고 적절한 딜레이를 설정해야 합니다.
+
+수정 위치:
+- `scraper_3n5.js` → `BATCH_SIZE` (현재 3), `sleep(2000)` (배치 간 2초)
+- `scraper_universal.js` → `BATCH_SIZE` (현재 10), 딜레이 없음
+- `scraper_health.js` → `BATCH_SIZE` (현재 10), 딜레이 없음
+- `scraper.js` → `BATCH_SIZE` (현재 10), 딜레이 없음
+
+**3. vestDec 디코딩 적용 완료 확인**
+
+모든 스크래퍼에 `cmmUtil.vestDec()` 디코딩이 추가되었지만 실제 스크래핑 테스트는 아직 못 했습니다.
+
+적용된 파일:
+- `scraper_3n5.js` — `calcOne()` 내 resultId 디코딩
+- `scraper.js` — resultIds 배열 디코딩
+- `scraper_universal.js` — resultId, resultIds 디코딩
+- `scraper_health.js` — resultId 디코딩
+- `scraper_annuity.js` — results[0] JSON 파싱 + 디코딩
 
 ## 스크래퍼 종류
 
-### 0. `einsmarket_scraper.py` — 금감원 보험다모아 스크래퍼
+### 금감원 보험다모아
 
-- **대상**: 금융감독원 보험다모아(e-insmarket.or.kr) 암보험 비교 데이터
-- **기술**: Python + Playwright (headless=False, 실제 Chrome 필요)
-- **실행 방법**:
-  ```bash
-  pip install playwright
-  playwright install chromium
-  python einsmarket_scraper.py --age-start 20 --age-end 64
-  ```
-- **수집 항목**: 나이(20~64세) x 성별(남/여) x 갱신구분(갱신형/비갱신형) → 전사 암보험 비교 XLS
-- **작동 방식**:
-  1. Playwright로 실제 Chrome 브라우저 실행
-  2. `navigator.webdriver` 제거로 MBuster 봇 감지 우회
-  3. 첫 페이지 로드 시 MBuster 자연 통과 → 이후 MBuster API intercept
-  4. 조합별로 폼 필드 세팅 → "상품비교하기" 클릭 → `exceldown()` 호출로 XLS 다운로드
-  5. 이미 수집된 파일은 자동 스킵 (중단/재개 가능)
-- **주의사항**:
-  - `headless=False` 필수 (headless 감지됨)
-  - F12(DevTools) 절대 열지 말 것 (즉시 차단)
-  - IP 차단 시 VPN/모바일 핫스팟으로 IP 변경 필요
-  - 상세 가이드: `einsmarket_scraper_guide.md` 참고
+#### `einsmarket_scraper.py` — 암보험
 
-### 0-1. `scrape_whole_ins.py` — 금감원 종신보험 스크래퍼
+- **기술**: Python + Playwright (headless=False)
+- **실행**: `python einsmarket_scraper.py --age-start 20 --age-end 64`
+- **MBuster WAF 우회**: `navigator.webdriver` 제거 + MBuster API intercept
 
-- **대상**: 금융감독원 보험다모아 종신보험 비교 데이터
-- **기술**: Playwright (세션 획득) + aiohttp (10건 병렬 다운로드)
-- **실행 방법**:
-  ```bash
-  pip install playwright aiohttp
-  python scrape_whole_ins.py --age-start 20 --age-end 64 --batch 10
-  ```
-- **수집 항목**: 나이(20~64세) x 성별(남/여) → 전사 종신보험 비교 XLS
-- **작동 방식**:
-  1. Playwright로 사이트 접속하여 세션 쿠키 획득 (MBuster 우회 포함)
-  2. 쿠키를 이용해 `POST /spreadsheet/download.knia`로 직접 엑셀 다운로드
-  3. 10건씩 동시 요청으로 빠른 수집
+#### `scrape_whole_ins.py` — 종신보험
 
-### 0-2. `scrape_temp_ins.py` — 금감원 정기보험 스크래퍼
+- **기술**: Playwright (세션 획득) + aiohttp (10건 병렬)
+- **실행**: `python scrape_whole_ins.py --age-start 20 --age-end 64 --batch 10`
 
-- **대상**: 금융감독원 보험다모아 정기보험 비교 데이터
-- **기술**: 종신보험 스크래퍼와 동일 (Playwright + aiohttp 병렬)
-- **실행 방법**:
-  ```bash
-  python scrape_temp_ins.py --age-start 20 --age-end 64 --batch 10
-  ```
-- **수집 항목**: 나이(20~64세) x 성별(남/여) → 전사 정기보험 비교 XLS
+#### `scrape_temp_ins.py` — 정기보험
 
-### 1. `scraper.js` — 착한정기보험II 전용
+- **기술**: 종신보험 스크래퍼와 동일
+- **실행**: `python scrape_temp_ins.py --age-start 20 --age-end 64 --batch 10`
 
-- **대상 상품**: 착한정기보험II (`314700102`)
-- **호출 방법**: `window.__startScraper()`
-- **수집 항목**: 나이(15~70세) x 성별(남/여) x 보험기간 x 납입기간 x 납입주기(월납/3개월납/6개월납/연납) x 체형(표준체/비흡연체/건강체/슈퍼건강체)
-- **특이사항**: 보험기간-납입기간 조합별 나이 상한이 다르며, `AGE_LIMITS` 테이블로 관리
+### KB라이프 Chrome 확장
 
-### 2. `scraper_universal.js` — 범용 스크래퍼
-
-- **대상 상품**: 대부분의 KB라이프 보험상품 (21개 상품 코드 내장)
-- **호출 방법**:
-  ```js
-  window.__scrape('316401101', '지켜주는교통안심보험')  // 특정 상품 스크래핑
-  window.__list()                                      // 등록된 상품 목록 확인
-  window.__downloadResults()                           // 결과 다운로드
-  window.__resetScraper()                              // 초기화
-  ```
-- **작동 방식**:
-  1. `insuranceplan-option` API로 상품 메타데이터 자동 조회 (보험기간, 납입기간, 가입금액 등)
-  2. 나이별 가입 가능 범위를 자동 탐색 (이진 탐색 방식)
-  3. 모든 조합에 대해 `premium-calculate` API 호출
-- **지원 상품 목록**: 3N5 간편/일반심사 각 유형, 착한암보험, e건강보험, 착한정기보험II, 하이파이브연금
-
-### 3. `scraper_health.js` — e-건강보험 전용
-
-- **대상 상품**: e건강보험 일반심사(`337600104`), e건강보험 간편심사355(`331600104`)
-- **호출 방법**: `window.__scrapeHealth('337600104', 'e건강보험_일반심사')`
-- **수집 항목**: 나이(20~64세) x 성별 x 플랜(든든/실속/뇌심/입원) x 보험기간
-  - 20~34세: 30년만기
-  - 35~64세: 10년/20년만기
-- **특이사항**: 기본 특약 + 선택형 특약(중환자실입원, 응급실내원, 암진단 등)까지 모두 수집
-
-### 4. `scraper_annuity.js` — 하이파이브연금 전용
-
-- **대상 상품**: 하이파이브연금 (`118500105`)
-- **호출 방법**: `window.__startAnnuity()`
-- **수집 항목**: 나이(15~60세) x 성별 x 납입기간(5/7/10/15년) x 월보험료(20만/50만원)
-- **작동 방식**: 2단계 호출
-  1. `m-premium-calculate` → 만기 적립액 산출
-  2. `getAnnuityExampleTotal` → 연금 수령액 6가지 유형 산출 (종신20년보증, 종신100세보증, 종신기대여명보증, 확정10년, 확정20년, 상속)
-
-### 5. `scan_annuity.js` — 연금 옵션 스캐너
-
-- **호출 방법**: `window.__scanAnnuity()`
-- **용도**: 하이파이브연금의 나이별(15~70세) 가입 가능한 보험기간/납입기간 옵션을 탐색하여 JSON으로 저장
-
-## 작동 원리
-
-### 공통 메커니즘
-
-1. **Chrome 확장 프로그램 방식**: KB라이프 웹사이트(`kblife.co.kr`)에 접속한 상태에서 동작
-2. **내부 API 활용**: 웹사이트의 `ajax` 객체를 그대로 사용하여 내부 보험료 계산 API 호출
-   - `GET /insuranceplan-option/{상품코드}` — 상품 메타데이터 (보험기간, 납입기간, 가입 가능 나이 등)
-   - `POST /premium-calculate` — 보험료 계산 요청
-   - `GET /insuranceplans/{결과ID}` — 계산 결과 상세 조회 (특약별 보험료 포함)
-3. **사전 조건**: 해당 상품 페이지에서 **수동으로 보험료 계산을 1회 실행**해야 `ajax` 객체가 초기화됨
-4. **WAF 대응**: KB라이프 웹 방화벽(WAF) 차단 감지 시 자동 대기 후 재시도
-5. **중단/재개 지원**: `localStorage`에 진행 상황을 저장하여, 브라우저를 닫았다 열어도 이어서 수집 가능
-6. **병렬 처리**: `BATCH_SIZE` (기본 10건) 단위로 동시 요청하여 수집 속도 최적화
-7. **결과 저장**: 수집 완료 시 JSONL 파일로 자동 다운로드
-
-### 사용 절차
+#### 사용 절차 (v2.0 — 팝업 UI)
 
 ```
-1. chrome://extensions → 개발자 모드 ON → "압축해제된 확장 프로그램을 로드합니다" → chrome_extension 폴더 선택
-2. KB라이프 웹사이트에서 원하는 상품 페이지 접속
+1. chrome://extensions → 개발자 모드 ON → chrome_extension 폴더 로드
+2. www.kblife.co.kr → 보험료 공시실 → 상품 페이지 접속
 3. 수동으로 보험료 계산 1회 실행 (ajax 객체 초기화)
-4. F12 → 콘솔에서 해당 스크래퍼 함수 호출
-5. 완료 시 결과 파일 자동 다운로드
+4. 우측 상단 확장 프로그램 아이콘 클릭 → 팝업에서 상품 선택 → 시작
+5. (이전 방식) 또는 F12 콘솔에서 직접 함수 호출
 ```
+
+#### `scraper_3n5.js` — 3N5 건강보험 (16개 상품)
+
+- **호출**: `window.__scrape3n5('334000104', '3N5_간편335_표준형')` 또는 `window.__scrapeAll()`
+- **API**: `premium-new-calculate` (주계약 + 특약 포함)
+- **수집**: 나이(15~80세) x 성별 x 보험기간 x 납입기간 x 가입금액배수(1x, 2x)
+- **특약 처리**: 나이/성별별 가입 가능 특약 자동 필터링 + 보험기간/납입기간 자동 매칭
+
+#### `scraper.js` — 착한정기보험II
+
+- **호출**: `window.__startScraper()`
+- **API**: `premium-calculate`
+- **수집**: 나이(19~70세) x 성별 x 보험기간 x 납입기간 x 납입주기 x 체형
+
+#### `scraper_universal.js` — 범용
+
+- **호출**: `window.__scrape('316100104', '착한암보험')`
+- **API**: `premium-calculate`
+- **지원**: 21개 상품 (3N5 16개 + 착한암 + e건강 + 착한정기II + 하이파이브연금)
+
+#### `scraper_health.js` — e건강보험
+
+- **호출**: `window.__scrapeHealth('337600104', 'e건강보험_일반심사')`
+- **수집**: 나이(20~64세) x 성별 x 플랜(든든/실속/뇌심/입원) x 보험기간
+- **특약**: 기본 + 선택형(중환자실, 응급실, 암진단 등)
+
+#### `scraper_annuity.js` — 하이파이브연금
+
+- **호출**: `window.__scrapeAnnuity()`
+- **API**: `m-premium-calculate` → `getAnnuityExampleTotal`
+- **수집**: 나이(19~65세) x 성별 x 납입기간(5/7/10/15년) x 월보험료(20만/50만)
+- **결과**: 적립액 + 연금 6유형 (종신20년보증, 종신100세보증 등)
+
+## 핵심 파일 수정 가이드
+
+### WAF 차단 관련 수정
+
+| 파일 | 위치 | 설명 |
+|------|------|------|
+| `bridge.js` | `SCRIPTS` 배열 | 페이지에 주입할 스크립트 목록. capture.js 등 추가/제거 |
+| `page_runner.js` | 상단 | console 오버라이드 등 prototype 변조 코드 — WAF 탐지 주의 |
+| `manifest.json` | `matches` | 대상 사이트 URL (`www.kblife.co.kr` 또는 `m.kblife.co.kr`) |
+
+### 배치 크기/딜레이 조정
+
+| 파일 | 변수 | 현재값 | 설명 |
+|------|------|--------|------|
+| `scraper_3n5.js` | `BATCH_SIZE` | 3 | 동시 호출 수 |
+| `scraper_3n5.js` | `sleep(2000)` | 2초 | 배치 간 딜레이 |
+| `scraper_universal.js` | `BATCH_SIZE` | 10 | 동시 호출 수 |
+| `scraper_health.js` | `BATCH_SIZE` | 10 | 동시 호출 수 |
+| `scraper.js` | `BATCH_SIZE` | 10 | 동시 호출 수 |
+
+### vestDec 디코딩
+
+모든 `premium-calculate`, `premium-new-calculate` 응답의 result/results 값이 vest 암호화되어 있습니다. 디코딩 패턴:
+
+```js
+// 단일 result (premium-new-calculate)
+var resultId = calcResult.result;
+if (typeof cmmUtil !== 'undefined' && cmmUtil.vestDec) {
+  try { resultId = cmmUtil.vestDec(resultId); } catch(e) {}
+}
+
+// results 배열 (premium-calculate)
+if (typeof cmmUtil !== 'undefined' && cmmUtil.vestDec) {
+  resultIds = resultIds.map(r => { try { return cmmUtil.vestDec(r); } catch(e) { return r; } });
+}
+
+// results 배열 내 JSON 객체 (annuity 등)
+if (typeof r.results[0] === 'string' && typeof cmmUtil !== 'undefined') {
+  try { r.results[0] = JSON.parse(cmmUtil.vestDec(r.results[0])); } catch(e) {}
+}
+```
+
+### 새 상품 추가
+
+1. `insuranceplan-option` API로 상품 옵션 조회하여 구조 파악
+2. 기존 스크래퍼 중 비슷한 구조의 것을 복사하여 수정
+3. `PRODUCTS` 배열에 `{ name, prodCd }` 추가
+4. 팝업 UI: `popup.html`의 `<select id="product">`에 `<option>` 추가
+5. `page_runner.js`의 명령 핸들러에 새 action 추가
 
 ## 수집 데이터
 
-### `data/einsmarket/` — 금융감독원 보험다모아
+### `data/einsmarket/` — 금감원 암보험 XLS (180개 파일)
+### `data/whole_ins/` — 금감원 종신보험 XLS (90개 파일)
+### `data/temp_ins/` — 금감원 정기보험 XLS (90개 파일)
+### `data/premiums/` — KB라이프 보험료 JSONL
 
-금융감독원 보험다모아(einsmarket) 사이트에서 수집한 KB라이프 보험 공시 데이터입니다.
-
-- **형식**: XLS (Excel)
-- **파일명 규칙**: `{보험유형}_{나이}세_{성별}_{갱신형/비갱신형}.xls`
-- **현재 데이터**: 암보험 (cancer) — 180개 파일
-
-### `data/whole_ins/` — 금감원 종신보험
-
-- **형식**: XLS (Excel)
-- **파일명 규칙**: `whole_{나이}세_{성별}.xls`
-- **현재 데이터**: 90개 파일 (20~64세 x 남/여)
-
-### `data/temp_ins/` — 금감원 정기보험
-
-- **형식**: XLS (Excel)
-- **파일명 규칙**: `temp_{나이}세_{성별}.xls`
-- **현재 데이터**: 90개 파일 (20~64세 x 남/여)
-
-### `data/premiums/` — KB라이프 보험료 계산 결과
-
-Chrome 확장 스크래퍼로 수집한 보험료 계산 결과입니다.
-
-- **형식**: JSONL (JSON Lines, 한 줄에 하나의 JSON 객체)
-- **수집된 상품**:
-  | 파일명 | 상품 |
-  |--------|------|
-  | `착한암보험_전체.jsonl` | 착한암보험 |
-  | `착한정기보험II_전체.jsonl` | 착한정기보험II |
-  | `e건강보험_일반심사_전체.jsonl` | e건강보험 (일반심사) |
-  | `e건강보험_간편심사355_전체.jsonl` | e건강보험 (간편심사 3·5·5) |
-  | `대중교통안심보험_전체.jsonl` | 대중교통안심보험 |
-  | `지켜주는교통안심보험_전체.jsonl` | 지켜주는교통안심보험 |
-  | `하이파이브연금_전체.jsonl` | 하이파이브연금 |
+| 파일명 | 상품 |
+|--------|------|
+| `착한암보험_전체.jsonl` | 착한암보험 |
+| `착한정기보험II_전체.jsonl` | 착한정기보험II |
+| `e건강보험_일반심사_전체.jsonl` | e건강보험 (일반심사) |
+| `e건강보험_간편심사355_전체.jsonl` | e건강보험 (간편심사) |
+| `하이파이브연금_전체.jsonl` | 하이파이브연금 |

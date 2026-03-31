@@ -80,8 +80,13 @@
       return { error: String(e).substring(0, 100) };
     }
 
-    const resultIds = data.results || [];
+    let resultIds = data.results || [];
     if (!resultIds.length) return { error: 'empty' };
+
+    // PC: vest 디코딩
+    if (typeof cmmUtil !== 'undefined' && cmmUtil.vestDec) {
+      resultIds = resultIds.map(r => { try { return cmmUtil.vestDec(r); } catch(e) { return r; } });
+    }
 
     // [후] 결과조회
     const details = [];

@@ -1,20 +1,28 @@
 {
   "manifest_version": 3,
   "name": "KB Life Premium Scraper",
-  "version": "1.0",
-  "description": "KB Life insurance premium calculator",
+  "version": "2.0",
+  "description": "KB Life insurance premium scraper",
   "permissions": ["activeTab"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "KB Life Scraper"
+  },
   "content_scripts": [
     {
-      "matches": ["https://www.kblife.co.kr/*", "https://m.kblife.co.kr/*"],
-      "js": ["inject.js"],
+      "matches": ["https://www.kblife.co.kr/*"],
+      "js": ["bridge.js"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["scraper.js", "scraper_universal.js", "scraper_health.js", "scan_annuity.js", "scraper_annuity.js", "existing_keys.json"],
-      "matches": ["https://www.kblife.co.kr/*", "https://m.kblife.co.kr/*"]
+      "resources": [
+        "capture.js", "test_pc.js", "scraper.js", "scraper_universal.js", "scraper_health.js",
+        "scan_annuity.js", "scraper_annuity.js", "scraper_3n5.js",
+        "page_runner.js", "existing_keys.json"
+      ],
+      "matches": ["https://www.kblife.co.kr/*"]
     }
   ]
 }

@@ -75,7 +75,11 @@
 
     if (!data || !data.results || !data.results.length) return { error: 'empty' };
 
-    const resultId = data.results[0];
+    let resultId = data.results[0];
+    // PC: vest 디코딩
+    if (typeof cmmUtil !== 'undefined' && cmmUtil.vestDec) {
+      try { resultId = cmmUtil.vestDec(resultId); } catch(e) {}
+    }
     if (!resultId || !/^[0-9]+$/.test(String(resultId))) return { error: 'no_resultId' };
 
     // 1) 선택형 특약 보험료 파싱 (results[1], Java toString 형식)

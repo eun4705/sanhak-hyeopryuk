@@ -44,6 +44,10 @@
       anutyPayPdVal: "99"
     });
 
+    // PC: vest 디코딩 (results 항목이 암호화된 문자열일 수 있음)
+    if (typeof r1.results[0] === 'string' && typeof cmmUtil !== 'undefined' && cmmUtil.vestDec) {
+      try { r1.results[0] = JSON.parse(cmmUtil.vestDec(r1.results[0])); } catch(e) {}
+    }
     var cal = r1.results[0].cal;
     var arr = cal.periodicDeathBenefitsDTO;
     var fin = arr[arr.length - 1];

@@ -177,9 +177,18 @@
 
     const details = [];
     const resultIds = data.results || [];
-    const resultId = data.result;
+    let resultId = data.result;
+
+    // PC: vest 디코딩
+    const vestDec = (v) => {
+      if (typeof cmmUtil !== 'undefined' && cmmUtil.vestDec) {
+        try { return cmmUtil.vestDec(v); } catch(e) {}
+      }
+      return v;
+    };
 
     if (resultId) {
+      resultId = vestDec(resultId);
       try {
         const det = await ajax.get('INSURANCEPLAN', '/insuranceplans/' + resultId);
         details.push({
@@ -191,7 +200,8 @@
         });
       } catch (e) { }
     } else if (resultIds.length > 0) {
-      for (const rid of resultIds) {
+      for (let rid of resultIds) {
+        rid = vestDec(rid);
         if (!rid || !/^[0-9]+$/.test(String(rid))) continue;
         try {
           const det = await ajax.get('INSURANCEPLAN', '/insuranceplans/' + rid);
