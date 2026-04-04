@@ -1,0 +1,248 @@
+[
+  {
+    "id": 1,
+    "query": "암에 걸리면 보험금 얼마 받아?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0420_주계약_제8조_7"],
+    "relevant_products": ["KL0420"]
+  },
+  {
+    "id": 2,
+    "query": "암보험에서 고액암이란 뭐야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0420_주계약_제3조_2"],
+    "relevant_products": ["KL0420"]
+  },
+  {
+    "id": 3,
+    "query": "암 진단 후 보험료 납입 면제되나요?",
+    "type": "간접질문",
+    "relevant_ids": ["KL0420_주계약_제9조_8"],
+    "relevant_products": ["KL0420"]
+  },
+  {
+    "id": 4,
+    "query": "암보험 보험금 지급하지 않는 경우는?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0420_주계약_제10조_9"],
+    "relevant_products": ["KL0420"]
+  },
+  {
+    "id": 5,
+    "query": "갑상선암도 보장되나요?",
+    "type": "간접질문",
+    "relevant_ids": ["KL0420_주계약_제3조_2", "KL0420_주계약_제4조_3"],
+    "relevant_products": ["KL0420"]
+  },
+  {
+    "id": 6,
+    "query": "연금보험 해약환급금은 얼마야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0490_주계약_제35조_36"],
+    "relevant_products": ["KL0490"]
+  },
+  {
+    "id": 7,
+    "query": "연금 수령 방식은 어떤 게 있어?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0490_주계약_제3조_2"],
+    "relevant_products": ["KL0490"]
+  },
+  {
+    "id": 8,
+    "query": "보험 청약 철회 기간이 얼마야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0490_주계약_제17조_16", "KL1611_주계약_제17조_16"],
+    "relevant_products": ["KL0490", "KL1611"]
+  },
+  {
+    "id": 9,
+    "query": "치매 진단 받으면 보험금 나와?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0810_주계약_제3조_3"],
+    "relevant_products": ["KL0810"]
+  },
+  {
+    "id": 10,
+    "query": "경도치매랑 중증치매 차이가 뭐야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0810_주계약_제2조_1"],
+    "relevant_products": ["KL0810"]
+  },
+  {
+    "id": 11,
+    "query": "대중교통 사고로 사망하면 보험금 얼마?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1041_주계약_제3조_2"],
+    "relevant_products": ["KL1041"]
+  },
+  {
+    "id": 12,
+    "query": "교통사고 보험 면책 사유는?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1041_주계약_제5조_4", "KL1042_주계약_제5조_4"],
+    "relevant_products": ["KL1041", "KL1042"]
+  },
+  {
+    "id": 13,
+    "query": "보험계약 무효가 되는 경우는?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1611_주계약_제19조_18"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 14,
+    "query": "보험 나이는 어떻게 계산해?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1611_주계약_제21조_20"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 15,
+    "query": "보험료 자동대출납입이 뭐야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1611_주계약_제25조_24"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 16,
+    "query": "계약 전 알릴 의무를 위반하면 어떻게 되나요?",
+    "type": "구어체질문",
+    "relevant_ids": ["KL1611_주계약_제14조_13"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 17,
+    "query": "달러보험은 환율 어떻게 적용해?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1602_주계약_제3조_2", "KL1603_주계약_제3조_2"],
+    "relevant_products": ["KL1602", "KL1603"]
+  },
+  {
+    "id": 18,
+    "query": "종신보험 사망보험금 지급사유는?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1608_주계약_제3조_2", "KL1609_주계약_제3조_2"],
+    "relevant_products": ["KL1608", "KL1609"]
+  },
+  {
+    "id": 19,
+    "query": "종신보험 해지하면 환급금 돌려받을 수 있어?",
+    "type": "구어체질문",
+    "relevant_ids": ["KL1616_주계약_제32조_26", "KL1617_주계약_제32조_27"],
+    "relevant_products": ["KL1616", "KL1617"]
+  },
+  {
+    "id": 20,
+    "query": "정기보험이랑 종신보험 차이가 뭐야?",
+    "type": "비교질문",
+    "relevant_ids": ["KL1607_주계약_제1조_0", "KL1609_주계약_제1조_0"],
+    "relevant_products": ["KL1607", "KL1609"]
+  },
+  {
+    "id": 21,
+    "query": "소득보장보험에서 월급여금은 뭐야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1606_주계약_제5조_4"],
+    "relevant_products": ["KL1606"]
+  },
+  {
+    "id": 22,
+    "query": "보험금 청구할 때 필요한 서류는?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1611_주계약_제11조_10"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 23,
+    "query": "보험금 지급 절차가 어떻게 돼?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1611_주계약_제12조_11"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 24,
+    "query": "보험료 안 내면 계약이 해지되나요?",
+    "type": "구어체질문",
+    "relevant_ids": ["KL1611_주계약_제26조_25"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 25,
+    "query": "입원비는 하루에 얼마나 나와?",
+    "type": "구어체질문",
+    "relevant_ids": ["KLT028_주계약_제3조_2"],
+    "relevant_products": ["KLT028"]
+  },
+  {
+    "id": 26,
+    "query": "건강보험 갱신은 어떻게 해?",
+    "type": "직접질문",
+    "relevant_ids": ["KLT028_주계약_제20조_21"],
+    "relevant_products": ["KLT028"]
+  },
+  {
+    "id": 27,
+    "query": "수술비 보장 특약이 있어?",
+    "type": "간접질문",
+    "relevant_ids": [],
+    "relevant_products": ["KLT028", "KLT029"],
+    "note": "특약 검색 - prodCode 필터로 매칭"
+  },
+  {
+    "id": 28,
+    "query": "보험수익자를 변경할 수 있나요?",
+    "type": "구어체질문",
+    "relevant_ids": ["KL1611_주계약_제15조_14"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 29,
+    "query": "사기로 보험 가입하면 어떻게 돼?",
+    "type": "구어체질문",
+    "relevant_ids": ["KL1611_주계약_제16조_15"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 30,
+    "query": "분쟁이 생기면 어디에 조정 신청해?",
+    "type": "구어체질문",
+    "relevant_ids": ["KL1611_주계약_제42조_44"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 31,
+    "query": "제자리암이 뭐야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL0420_주계약_제5조_4"],
+    "relevant_products": ["KL0420"]
+  },
+  {
+    "id": 32,
+    "query": "상해보험에서 재해란 뭐야?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1044_주계약_제2조_1"],
+    "relevant_products": ["KL1044"]
+  },
+  {
+    "id": 33,
+    "query": "간편심사형이랑 일반심사형 차이가 뭐야?",
+    "type": "비교질문",
+    "relevant_ids": ["KL1608_주계약_제1조_0", "KL1609_주계약_제1조_0"],
+    "relevant_products": ["KL1608", "KL1609"]
+  },
+  {
+    "id": 34,
+    "query": "보험계약대출은 어떻게 받아?",
+    "type": "직접질문",
+    "relevant_ids": ["KL1611_주계약_제30조_30"],
+    "relevant_products": ["KL1611"]
+  },
+  {
+    "id": 35,
+    "query": "약속플러스 종신보험 해약환급금은 일반 종신보험보다 적어?",
+    "type": "비교질문",
+    "relevant_ids": ["KL1616_주계약_제32조_26"],
+    "relevant_products": ["KL1616"]
+  }
+]
