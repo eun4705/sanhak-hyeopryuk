@@ -75,25 +75,7 @@ def main():
         if not exists:
             all_ok = False
 
-    # 5. 테스트
-    if all_ok:
-        print(f"\n{'='*50}")
-        print("  검색 엔진 테스트")
-        print(f"{'='*50}")
-        try:
-            sys.path.insert(0, os.path.join(base, "scraper"))
-            from search_engine import SearchEngine
-
-            engine = SearchEngine()
-            results = engine.search("암보험 보장 내용", top_k=3)
-            print(f"\n  테스트 쿼리: '암보험 보장 내용'")
-            for i, r in enumerate(results):
-                meta = r["metadata"]
-                print(f"  {i+1}. [{meta['prodCode']}] {meta['조']} (score: {r['score']:.4f})")
-            print("\n  [성공] 검색 엔진 정상 동작!")
-        except Exception as e:
-            print(f"  [실패] 검색 테스트: {e}")
-    else:
+    if not all_ok:
         print("\n  일부 데이터 파일이 없습니다. git pull을 확인해주세요.")
 
     print(f"\n{'='*50}")
