@@ -153,6 +153,7 @@ class SearchEngine:
         candidate_k: int = 30,
         use_reranker: bool = True,
         use_expansion: bool = True,
+        text_limit: int = 800,
     ) -> list[dict]:
         """
         통합 검색: 쿼리확장 → Hybrid(벡터+BM25) → Reranker
@@ -166,15 +167,15 @@ class SearchEngine:
             use_reranker: reranker 사용 여부
             use_expansion: 쿼리 확장 사용 여부
         """
-        # 1. 쿼리 확장
+        # 1. 쿼리 확장 (BM25 전용)
         if use_expansion:
             expanded = expand_query(query)
         else:
             expanded = query
 
-        # 2-A. 벡터 검색 (확장된 쿼리로)
+        # 2-A. 벡터 검색 (원본 쿼리로 — 구어체 혼합 방지)
         query_emb = self.embed_model.encode(
-            [expanded], normalize_embeddings=True
+            [query], normalize_embeddings=True
         )
         vector_results = self.collection.query(
             query_embeddings=query_emb.tolist(),
@@ -188,7 +189,7 @@ class SearchEngine:
         for did, dist in zip(vector_ids, vector_distances):
             vector_scores[did] = 1 - dist  # cosine similarity
 
-        # 2-B. BM25 검색 (확장된 쿼리로)
+        # 2-B. BM25 검색 (확장 쿼리로 — 약관 용어 키워드 매칭)
         bm25_tokens = tokenize_korean(expanded)
         bm25_raw_scores = self.bm25.get_scores(bm25_tokens)
         bm25_top_idx = np.argsort(bm25_raw_scores)[::-1][:candidate_k]
@@ -259,7 +260,7 @@ class SearchEngine:
                     "id": did,
                     "score": score,
                     "metadata": self.doc_metas[idx],
-                    "text": self.doc_texts[idx][:200],
+                    "text": self.doc_texts[idx][:text_limit],
                 }
             )
 

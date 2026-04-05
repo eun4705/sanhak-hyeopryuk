@@ -20,6 +20,36 @@ PREMIUMS_DIR = os.path.join(BASE_DIR, "data", "premiums")
 APPENDIX_DIR = os.path.join(BASE_DIR, "data", "별표_parsed")
 
 
+# ── prodCode → premium product 매핑 (정적) ──
+
+PRODCODE_TO_PREMIUM = {
+    "KL0420": ["착한암보험"],
+    "KL0490": ["하이파이브연금"],
+    "KL0810": ["KB골든라이프_치매"],
+    "KL1041": ["대중교통안심보험"],
+    "KL1042": ["지켜주는교통안심보험"],
+    "KL1044": ["KB골든라이프_상해"],
+    "KL1060": ["KB세번의약속e연금_미보증", "KB세번의약속e연금_보증"],
+    "KL1602": ["KB달러평생보장_간편"],
+    "KL1603": ["KB달러평생보장_일반"],
+    "KL1606": ["KB소득보장보험"],
+    "KL1607": ["KB정기보험"],
+    "KL1608": ["KB종신보험_간편심사"],
+    "KL1609": ["KB종신보험_일반심사"],
+    "KL1611": ["착한정기보험II"],
+    "KL1616": ["KB약속플러스종신_일반"],
+    "KL1617": ["KB약속플러스종신_간편"],
+    "KLT028": ["e건강보험_일반심사"],
+    "KLT029": ["e건강보험_간편심사355"],
+}
+
+# 역매핑: premium product → prodCode
+PREMIUM_TO_PRODCODE = {}
+for _code, _names in PRODCODE_TO_PREMIUM.items():
+    for _name in _names:
+        PREMIUM_TO_PRODCODE[_name] = _code
+
+
 # ── 데이터 로드 (앱 시작 시 1회) ──
 
 def _load_json(path):
@@ -50,24 +80,40 @@ class AgentDataStore:
             code = os.path.basename(f).replace(".json", "")
             self.appendices[code] = _load_json(f)
 
-        # 보험료 데이터 인덱싱
-        self._premium_index = {}
+        # 보험료 데이터 인덱싱 (prodCode 기반)
+        self._premium_by_product = {}  # product명 → records (원본)
+        self._premium_by_code = {}     # prodCode → records (매핑 기반)
         self._load_premiums()
 
     def _load_premiums(self):
-        """보험료 JSONL을 product별로 인덱싱"""
+        """보험료 JSONL을 product별 + prodCode별로 인덱싱"""
         for f in glob.glob(os.path.join(PREMIUMS_DIR, "*.jsonl")):
             with open(f, "r", encoding="utf-8") as fp:
                 for line in fp:
                     record = json.loads(line)
                     product = record["product"]
-                    if product not in self._premium_index:
-                        self._premium_index[product] = []
-                    self._premium_index[product].append(record)
+                    if product not in self._premium_by_product:
+                        self._premium_by_product[product] = []
+                    self._premium_by_product[product].append(record)
+
+        # prodCode 기반 인덱스 구축
+        for prod_code, premium_names in PRODCODE_TO_PREMIUM.items():
+            records = []
+            for name in premium_names:
+                records.extend(self._premium_by_product.get(name, []))
+            if records:
+                self._premium_by_code[prod_code] = records
+
+        # 하위 호환: _premium_index는 _premium_by_product를 가리킴
+        self._premium_index = self._premium_by_product
 
     def get_product_list(self):
         """전체 상품 목록"""
         return list(self.comparison_matrix.get("products", {}).keys())
+
+    def get_premium_by_code(self, prod_code: str) -> list:
+        """prodCode로 보험료 레코드 조회"""
+        return self._premium_by_code.get(prod_code, [])
 
 
 # ── Tool A: 약관 검색 ──
@@ -106,6 +152,18 @@ def tool_search_yakgwan(
             r for r in results
             if r["metadata"].get("prodCode") in product_codes
         ][:top_k]
+
+        # 0건 fallback: 상품 필터 제거 후 재검색
+        if not results:
+            results = search_engine.search(query, **search_kwargs)[:top_k]
+            if results:
+                fallback_note = "지정한 상품에서 결과를 찾지 못해 전체 상품에서 검색했습니다."
+            else:
+                fallback_note = "해당 내용을 약관에서 찾을 수 없습니다."
+        else:
+            fallback_note = None
+    else:
+        fallback_note = "해당 내용을 약관에서 찾을 수 없습니다." if not results else None
 
     # 2. 관련 조항 2차 조회 (related_articles 그래프)
     related_lookups = []
@@ -157,19 +215,23 @@ def tool_search_yakgwan(
         has_exception = bool(re.search(r"다만|불구하고|제외|예외", text))
         r["has_exception_clause"] = has_exception
 
-    return {
+    response = {
         "results": results,
         "related_lookups": related_lookups[:10],
         "gap_alerts": gap_alerts,
         "mandatory_disclosure": list(set(mandatory_disclosures)),
     }
+    if fallback_note:
+        response["fallback_note"] = fallback_note
+    return response
 
 
 # ── Tool B: 보험료 조회 ──
 
 def tool_lookup_premium(
     data_store: AgentDataStore,
-    product: str,
+    product: str = None,
+    prod_code: str = None,
     age: int = None,
     gender: str = None,
     insurance_term: str = None,
@@ -177,32 +239,50 @@ def tool_lookup_premium(
 ) -> dict:
     """
     보험료 정확 조회. 벡터 검색 절대 안 씀.
+    prod_code(우선) 또는 product(상품명)로 조회.
 
     Returns:
         {
             "product": str,
-            "matching_records": [...],  # 조건에 맞는 레코드들
+            "prod_code": str,
+            "matching_records": [...],
             "total_found": int,
             "filters_applied": {...}
         }
     """
-    records = data_store._premium_index.get(product, [])
+    records = []
+
+    # 1. prodCode 기반 조회 (우선)
+    if prod_code:
+        records = data_store.get_premium_by_code(prod_code)
+        if records:
+            product = records[0]["product"]
+
+    # 2. 상품명 기반 조회 (fallback)
+    if not records and product:
+        records = data_store._premium_by_product.get(product, [])
+
+        if not records:
+            # 부분 매칭 시도 (상품명 fallback)
+            for key in data_store._premium_by_product:
+                if product in key or key in product:
+                    records = data_store._premium_by_product[key]
+                    product = key
+                    break
+
+        # 상품명에서 prodCode 역매핑
+        if records and not prod_code:
+            prod_code = PREMIUM_TO_PRODCODE.get(product, "")
 
     if not records:
-        # 부분 매칭 시도
-        for key in data_store._premium_index:
-            if product in key or key in product:
-                records = data_store._premium_index[key]
-                product = key
-                break
-
-    if not records:
+        available = list(PRODCODE_TO_PREMIUM.keys())
         return {
-            "product": product,
+            "product": product or "",
+            "prod_code": prod_code or "",
             "matching_records": [],
             "total_found": 0,
             "filters_applied": {},
-            "error": f"'{product}' 상품을 찾을 수 없습니다. 가능한 상품: {list(data_store._premium_index.keys())}",
+            "error": f"상품을 찾을 수 없습니다. 가능한 상품 코드: {available}",
         }
 
     # 필터 적용
@@ -252,7 +332,8 @@ def tool_lookup_premium(
         results.append(result)
 
     return {
-        "product": product,
+        "product": product or "",
+        "prod_code": prod_code or "",
         "matching_records": results,
         "total_found": len(filtered),
         "filters_applied": filters,
@@ -333,14 +414,13 @@ def tool_compare_products(
         for key, val in comp_constraints.items():
             constraints.append({"key": key, "detail": val})
 
-    # 5. 보험료 비교 (나이/성별 제공 시)
+    # 5. 보험료 비교 (나이/성별 제공 시) — prodCode 기반
     premium_comparison = {}
     if user_age and user_gender:
         for code in product_codes:
             if code in products_data:
-                product_name = products_data[code].get("short_name", "")
                 premium_result = tool_lookup_premium(
-                    data_store, product_name,
+                    data_store, prod_code=code,
                     age=user_age, gender=user_gender,
                 )
                 if premium_result["matching_records"]:
@@ -385,19 +465,24 @@ def tool_get_product_catalog(data_store: AgentDataStore) -> dict:
     for code, info in products_data.items():
         product_type = info.get("product_type", "기타")
 
+        # 특약 이름 수집 (prodCode 기반)
+        rider_names = []
+        premium_records = data_store.get_premium_by_code(code)
+        if premium_records:
+            for v in premium_records[0].get("variants", []):
+                for r in v.get("riders", []):
+                    rider_names.append(r.get("name", ""))
+
         entry = {
             "prodCode": code,
             "name": info.get("product_name", ""),
-            "short_name": info.get("short_name", ""),
             "product_type": product_type,
             "underwriting_type": info.get("underwriting_type", ""),
             "main_coverage": info.get("main_coverage", ""),
+            "available_riders": rider_names[:10],
             "insurance_period": info.get("insurance_period", ""),
             "entry_age_range": info.get("entry_age_range", ""),
-            "renewable": info.get("renewable", False),
             "currency": info.get("currency", "KRW"),
-            "rider_count": info.get("rider_count", 0),
-            "critical_alerts": info.get("critical_alerts", []),
         }
         catalog.append(entry)
 
@@ -456,12 +541,22 @@ def tool_design_plan(
                 if user_age < min_age or user_age > max_age:
                     continue
 
-        # 니즈 매칭
+        # 니즈 매칭 (주보장 + 특약 이름까지 확인)
         relevance = 0
+        # 해당 상품의 특약 이름 수집 (prodCode 기반)
+        rider_names = ""
+        premium_records = data_store.get_premium_by_code(code)
+        if premium_records:
+            for v in premium_records[0].get("variants", []):
+                for r in v.get("riders", []):
+                    rider_names += " " + r.get("name", "").lower()
+
         for need in coverage_needs:
             need_lower = need.lower()
             if need_lower in main_cov or need_lower in product_type:
-                relevance += 1
+                relevance += 2  # 주보장 매칭은 가중치 높게
+            elif need_lower in rider_names:
+                relevance += 1  # 특약 매칭
 
         if relevance > 0:
             candidates.append({
@@ -478,10 +573,9 @@ def tool_design_plan(
     plan_options = []
     for candidate in candidates[:5]:
         code = candidate["prodCode"]
-        short_name = products_data[code].get("short_name", "")
 
         premium = tool_lookup_premium(
-            data_store, short_name,
+            data_store, prod_code=code,
             age=user_age, gender=user_gender,
         )
 
