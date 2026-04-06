@@ -1,11 +1,13 @@
 import os
+import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# 팀원 레포의 InsuranceAgent 임포트
-from scraper.agent_runner import InsuranceAgent
+# scraper/ 폴더를 경로에 추가 (agent_tools 등 내부 임포트 해결)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "scraper"))
+from agent_runner import InsuranceAgent
 
 agent = None
 
